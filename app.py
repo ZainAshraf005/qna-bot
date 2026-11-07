@@ -4,6 +4,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from llm_integration import LLMIntegration
+from session_manager import SessionFileManager
 
 load_dotenv()
 
@@ -15,7 +16,10 @@ st.set_page_config(
 
 bot = LLMIntegration()
 
-# Initialize session state
+# Initialize session state & session-isolated storage
+if "file_manager" not in st.session_state:
+    st.session_state.file_manager = SessionFileManager()
+
 if "vector_db" not in st.session_state:
     st.session_state.vector_db = None
 
@@ -45,9 +49,20 @@ with st.sidebar:
         st.markdown("### 📄 Active Document")
         st.success(f"**{st.session_state.filename or 'Uploaded PDF'}**")
 
+        file_bytes = st.session_state.file_manager.get_file_bytes()
+        if file_bytes:
+            st.download_button(
+                label="⬇️ Download File",
+                data=file_bytes,
+                file_name=st.session_state.filename or "document.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔄 New File", use_container_width=True):
+                st.session_state.file_manager.cleanup_current_file()
                 st.session_state.document_uploaded = False
                 st.session_state.vector_db = None
                 st.session_state.messages = []
@@ -75,13 +90,16 @@ if not st.session_state.document_uploaded:
         )
         if uploaded_file:
             st.session_state.filename = uploaded_file.name
-            with open("uploaded_document.pdf", "wb") as f:
-                f.write(uploaded_file.getvalue())
+
+            # Save exclusively in this session's sandbox directory
+            saved_file_path = st.session_state.file_manager.save_file(
+                uploaded_file.name, uploaded_file.getvalue()
+            )
 
             with st.spinner(
                 f"⚡ Processing document with {provider_name} embeddings..."
             ):
-                vector_db = bot.document_process("./uploaded_document.pdf")
+                vector_db = bot.document_process(saved_file_path)
                 st.session_state.vector_db = vector_db
                 st.session_state.document_uploaded = True
 
@@ -120,16 +138,14 @@ else:
             st.markdown(query)
 
         # Generate answer with spinner
-        with (
-            st.chat_message("assistant", avatar="🤖"),
-            st.spinner("Searching document & formulating answer..."),
-        ):
-            result = bot.answer_query(
-                vector_db=st.session_state.vector_db,
-                query=query,
-                chat_history=st.session_state.messages,
-            )
-            st.markdown(result)
+        with st.chat_message("assistant", avatar="🤖"):
+            with st.spinner("Searching document & formulating answer..."):
+                result = bot.answer_query(
+                    vector_db=st.session_state.vector_db,
+                    query=query,
+                    chat_history=st.session_state.messages,
+                )
+                st.markdown(result)
 
         st.session_state.messages.append({"role": "user", "content": query})
         st.session_state.messages.append({"role": "ai", "content": result})

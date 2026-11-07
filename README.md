@@ -17,6 +17,7 @@ An intelligent, conversational **Retrieval-Augmented Generation (RAG)** applicat
   - **Google Gemini** (`models/gemini-embedding-001`): Direct, ultra-fast embedding ingestion.
   - **Voyage AI** (`voyage-4-lite`): Rate-limited batch processing designed for strict API quotas.
 - 💬 **Conversational Memory**: Maintains chat history and feeds previous turns into the LLM context so you can ask natural follow-up questions.
+- 🔒 **Multi-User Session Isolation**: Each session operates inside an isolated sandbox directory. Files cannot be accessed by other users and are automatically deleted on session expiry or server shutdown.
 - 🎨 **Modern Streamlit Interface**:
   - Wide responsive dashboard with user (`👤`) and bot (`🤖`) avatars.
   - Active document tracking with quick "New File" and "Clear Chat" controls.
@@ -59,6 +60,7 @@ flowchart LR
 ```text
 qna-bot/
 ├── app.py                 # Streamlit UI, state management, and interaction flows
+├── session_manager.py     # Per-session file isolation & lifecycle cleanup
 ├── llm_integration.py     # LLMIntegration class (embeddings, vector store, completions)
 ├── pyproject.toml         # Project dependencies and packaging metadata
 ├── uv.lock                # Deterministic dependency lockfile (managed via uv)
