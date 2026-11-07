@@ -1,25 +1,44 @@
+import os
 import time
-from typing import Literal
+from typing import Any, Literal, cast
 
+from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import InMemoryVectorStore
+from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_voyageai import VoyageAIEmbeddings
+from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
+
+load_dotenv()
 
 Provider = Literal["gemini", "voyage"]
 
 
 class LLMIntegration:
-    def __init__(self, llm, embedding_provider: Provider = "gemini"):
-        self.llm = llm
-        self.embedding_provider = embedding_provider
+    DEFAULT_PROVIDER: Provider = "gemini"
 
-    def invoke_llm(self, prompt_or_messages: str | list[dict]) -> str:
+    def __init__(self):
+        self.embedding_provider = self.DEFAULT_PROVIDER
+        self.llm = OpenAI(
+            api_key=os.environ["XKIRO_API_KEY"],
+            base_url="https://api.xkiro.com/v1",
+        )
+
+    def invoke_llm(
+        self,
+        prompt_or_messages: str
+        | list[ChatCompletionMessageParam]
+        | list[dict[str, Any]],
+    ) -> str:
+        """Send a prompt string or a list of chat messages to the LLM."""
         if isinstance(prompt_or_messages, str):
-            messages = [{"role": "user", "content": prompt_or_messages}]
+            messages: list[ChatCompletionMessageParam] = [
+                {"role": "user", "content": prompt_or_messages}
+            ]
         else:
-            messages = prompt_or_messages
+            messages = cast(list[ChatCompletionMessageParam], prompt_or_messages)
 
         llm_response = self.llm.chat.completions.create(
             model="mistralai/mistral-large-2512",
@@ -102,13 +121,18 @@ If the answer is not available in the context, say "I don't know".
 Document Context:
 {context}"""
 
-        messages = [{"role": "system", "content": system_instruction}]
+        messages: list[ChatCompletionMessageParam] = [
+            {"role": "system", "content": system_instruction}
+        ]
 
         if chat_history:
             # Include recent chat history (e.g. last 6 turns)
             for msg in chat_history[-6:]:
-                role = "assistant" if msg.get("role") == "ai" else "user"
-                messages.append({"role": role, "content": msg.get("content", "")})
+                content = str(msg.get("content", ""))
+                if msg.get("role") == "ai":
+                    messages.append({"role": "assistant", "content": content})
+                else:
+                    messages.append({"role": "user", "content": content})
 
         # Append the current query
         messages.append({"role": "user", "content": query})

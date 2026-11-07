@@ -1,23 +1,13 @@
-import os
 import time
 
 import streamlit as st
 from dotenv import load_dotenv
-from openai import OpenAI
 
 from llm_integration import LLMIntegration
 
 load_dotenv()
 
-# Hardcoded model selection: "gemini" or "voyage"
-EMBEDDING_PROVIDER = "gemini"
-
-llm = OpenAI(
-    api_key=os.environ["XKIRO_API_KEY"],
-    base_url="https://api.xkiro.com/v1",
-)
-
-bot = LLMIntegration(llm=llm, embedding_provider=EMBEDDING_PROVIDER)
+bot = LLMIntegration()
 
 if "vector_db" not in st.session_state:
     st.session_state.vector_db = None
@@ -28,7 +18,8 @@ if "document_uploaded" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-st.subheader(f"QnA Bot — Powered by {EMBEDDING_PROVIDER.capitalize()} & Mistral")
+provider_name = bot.embedding_provider.capitalize()
+st.subheader(f"QnA Bot — Powered by {provider_name} & Mistral")
 
 if not st.session_state.document_uploaded:
     file = st.file_uploader("Upload a PDF document", type=["pdf"], key="file_uploader")
@@ -37,7 +28,7 @@ if not st.session_state.document_uploaded:
             f.write(file.getvalue())
 
         with st.spinner(
-            f"Processing document with {EMBEDDING_PROVIDER.capitalize()} embeddings..."
+            f"Processing document with {provider_name} embeddings..."
         ):
             vector_db = bot.document_process("./uploaded_document.pdf")
             st.session_state.vector_db = vector_db
