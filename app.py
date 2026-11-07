@@ -54,9 +54,14 @@ if st.session_state.document_uploaded and st.session_state.vector_db:
 
     query = st.chat_input("Ask a question about the uploaded document: ")
     if query:
-        st.session_state.messages.append({"role": "user", "content": query})
         st.chat_message("user").markdown(query)
 
-        result = bot.answer_query(st.session_state.vector_db, query)
+        result = bot.answer_query(
+            vector_db=st.session_state.vector_db,
+            query=query,
+            chat_history=st.session_state.messages,
+        )
+
+        st.session_state.messages.append({"role": "user", "content": query})
         st.session_state.messages.append({"role": "ai", "content": result})
         st.chat_message("ai").markdown(result)

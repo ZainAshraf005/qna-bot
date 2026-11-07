@@ -15,10 +15,15 @@ class LLMIntegration:
         self.llm = llm
         self.embedding_provider = embedding_provider
 
-    def invoke_llm(self, prompt: str) -> str:
+    def invoke_llm(self, prompt_or_messages: str | list[dict]) -> str:
+        if isinstance(prompt_or_messages, str):
+            messages = [{"role": "user", "content": prompt_or_messages}]
+        else:
+            messages = prompt_or_messages
+
         llm_response = self.llm.chat.completions.create(
             model="mistralai/mistral-large-2512",
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
         )
         return (
             llm_response.choices[0].message.content
@@ -55,7 +60,6 @@ class LLMIntegration:
         return vector_db
 
     def document_process(self, file_path: str):
-
         # 1. Load PDF
         loader = PyPDFLoader(file_path)
         documents = loader.load()
@@ -80,10 +84,33 @@ class LLMIntegration:
 
         return vector_db
 
-    def answer_query(self, vector_db, query: str, k: int = 4) -> str:
+    def answer_query(
+        self,
+        vector_db,
+        query: str,
+        chat_history: list[dict] | None = None,
+        k: int = 4,
+    ) -> str:
+        """Retrieve relevant context and answer using both document chunks and chat history."""
         retrieved_docs = vector_db.similarity_search(query, k=k)
         context = "\n\n".join(document.page_content for document in retrieved_docs)
-        prompt = f"""You are a helpful assistant.
-                  Answer using only the provided context.
-                  Context: {context} Question: {query}"""
-        return self.invoke_llm(prompt)
+
+        system_instruction = f"""You are a helpful assistant.
+Answer using the provided document context and conversation history.
+If the answer is not available in the context, say "I don't know".
+
+Document Context:
+{context}"""
+
+        messages = [{"role": "system", "content": system_instruction}]
+
+        if chat_history:
+            # Include recent chat history (e.g. last 6 turns)
+            for msg in chat_history[-6:]:
+                role = "assistant" if msg.get("role") == "ai" else "user"
+                messages.append({"role": role, "content": msg.get("content", "")})
+
+        # Append the current query
+        messages.append({"role": "user", "content": query})
+
+        return self.invoke_llm(messages)
