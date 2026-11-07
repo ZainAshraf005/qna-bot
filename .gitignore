@@ -1,0 +1,6 @@
+# Environment files
+.env
+.env.*
+
+# PDF documents
+*.pdf
